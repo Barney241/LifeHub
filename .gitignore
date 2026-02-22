@@ -1,0 +1,19 @@
+# Go
+backend/dist/
+backend/tmp/
+bin/
+main
+
+# Node
+node_modules/
+.next/
+out/
+build/
+.env*.local
+
+# PocketBase
+pb_data/
+pb_public/
+
+# OS
+.DS_Store
