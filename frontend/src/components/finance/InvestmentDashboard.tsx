@@ -130,22 +130,72 @@ export function InvestmentDashboard({ portfolios, onImport, onFetchSnapshots, da
     return result;
   }, [allSnapshots, dateRange]);
 
-  // For totals header, use the latest snapshot within the filtered range per portfolio
-  const filteredTotals = useMemo(() => {
-    let value = 0, gainLoss = 0, invested = 0;
+  // Get the latest snapshot per portfolio within the filtered range
+  const latestFilteredSnap = useMemo(() => {
+    const result: Record<string, InvestmentSnapshot | null> = {};
     Object.entries(filteredSnapshots).forEach(([portfolioId, snaps]) => {
-      if (snaps.length === 0) return;
-      const portfolio = portfolios.find(p => p.id === portfolioId);
-      const curr = portfolio?.currency || 'CZK';
-      const latest = snaps.reduce((a, b) =>
+      if (snaps.length === 0) {
+        result[portfolioId] = null;
+      } else {
+        result[portfolioId] = snaps.reduce((a, b) =>
+          (a.report_date || a.period_end) > (b.report_date || b.period_end) ? a : b
+        );
+      }
+    });
+    return result;
+  }, [filteredSnapshots]);
+
+  // Find the snapshot just BEFORE the selected date range per portfolio.
+  // Since gain_loss = cumulative unrealized P&L (end_value − invested),
+  // period gain = latest_in_range.gain_loss − prePeriod.gain_loss.
+  const prePeriodSnap = useMemo(() => {
+    const result: Record<string, InvestmentSnapshot | null> = {};
+    portfolios.forEach(({ id }) => {
+      if (!dateRange) {
+        result[id] = null;
+        return;
+      }
+      const all = allSnapshots[id] || [];
+      // All snapshots strictly before the period start, pick the latest one
+      const before = all.filter(s => {
+        const d = (s.report_date || s.period_end || '').split('T')[0];
+        return d < dateRange.start;
+      });
+      result[id] = before.length === 0 ? null : before.reduce((a, b) =>
         (a.report_date || a.period_end) > (b.report_date || b.period_end) ? a : b
       );
-      value += toDC(latest.end_value, curr);
-      gainLoss += toDC(latest.gain_loss, curr);
-      invested += toDC(latest.invested, curr);
+    });
+    return result;
+  }, [allSnapshots, portfolios, dateRange]);
+
+  // For totals header, use the latest snapshot within the filtered range per portfolio
+  // FALLBACK: If no snapshot in range, use prePeriodSnap (latest before range)
+  const filteredTotals = useMemo(() => {
+    let value = 0, gainLoss = 0, invested = 0;
+    portfolios.forEach(portfolio => {
+      const snaps = filteredSnapshots[portfolio.id] || [];
+      const preSnap = prePeriodSnap[portfolio.id];
+      const portfolioId = portfolio.id;
+
+      const curr = portfolio.currency || 'CZK';
+
+      let snapToUse: InvestmentSnapshot | null = null;
+      if (snaps.length > 0) {
+        snapToUse = snaps.reduce((a, b) =>
+          (a.report_date || a.period_end) > (b.report_date || b.period_end) ? a : b
+        );
+      } else if (preSnap) {
+        snapToUse = preSnap;
+      }
+
+      if (snapToUse) {
+        value += toDC(snapToUse.end_value, curr);
+        gainLoss += toDC(snapToUse.gain_loss, curr);
+        invested += toDC(snapToUse.invested, curr);
+      }
     });
     return { value, gainLoss, invested };
-  }, [filteredSnapshots, portfolios]);
+  }, [filteredSnapshots, prePeriodSnap, portfolios, toDC]);
 
   // Use filtered totals when a date range is set, otherwise aggregate from latest_snapshot
   const totalValue = dateRange
@@ -276,43 +326,6 @@ export function InvestmentDashboard({ portfolios, onImport, onFetchSnapshots, da
       .sort((a, b) => b.value - a.value);
   }, [filteredSnapshots, portfolios]);
 
-  // Get the latest snapshot per portfolio within the filtered range
-  const latestFilteredSnap = useMemo(() => {
-    const result: Record<string, InvestmentSnapshot | null> = {};
-    Object.entries(filteredSnapshots).forEach(([portfolioId, snaps]) => {
-      if (snaps.length === 0) {
-        result[portfolioId] = null;
-      } else {
-        result[portfolioId] = snaps.reduce((a, b) =>
-          (a.report_date || a.period_end) > (b.report_date || b.period_end) ? a : b
-        );
-      }
-    });
-    return result;
-  }, [filteredSnapshots]);
-
-  // Find the snapshot just BEFORE the selected date range per portfolio.
-  // Since gain_loss = cumulative unrealized P&L (end_value − invested),
-  // period gain = latest_in_range.gain_loss − prePeriod.gain_loss.
-  const prePeriodSnap = useMemo(() => {
-    const result: Record<string, InvestmentSnapshot | null> = {};
-    portfolios.forEach(({ id }) => {
-      if (!dateRange) {
-        result[id] = null;
-        return;
-      }
-      const all = allSnapshots[id] || [];
-      // All snapshots strictly before the period start, pick the latest one
-      const before = all.filter(s => {
-        const d = (s.report_date || s.period_end || '').split('T')[0];
-        return d < dateRange.start;
-      });
-      result[id] = before.length === 0 ? null : before.reduce((a, b) =>
-        (a.report_date || a.period_end) > (b.report_date || b.period_end) ? a : b
-      );
-    });
-    return result;
-  }, [allSnapshots, portfolios, dateRange]);
 
   // Chart data: per-portfolio value over time (line chart comparison)
   const portfolioValueOverTime = useMemo(() => {
@@ -444,8 +457,9 @@ export function InvestmentDashboard({ portfolios, onImport, onFetchSnapshots, da
           {portfolios.map((portfolio) => {
             const filteredSnap = latestFilteredSnap[portfolio.id];
             const preSnap = prePeriodSnap[portfolio.id];
-            // Use filtered snapshot when date range is set, otherwise latest from API
-            const snap = dateRange ? filteredSnap : portfolio.latest_snapshot;
+            // Use filtered snapshot when date range is set, otherwise fall back to pre-period historic, or latest from API
+            const snap = dateRange ? (filteredSnap || preSnap) : portfolio.latest_snapshot;
+            const isStale = dateRange && !filteredSnap && preSnap;
             const isSelected = selectedPortfolioId === portfolio.id;
 
             // Period-aware gain:
@@ -483,9 +497,19 @@ export function InvestmentDashboard({ portfolios, onImport, onFetchSnapshots, da
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     {portfolio.provider}
                   </span>
-                  {snap && (
-                    <span className="text-xs text-slate-500">{formatDate(snap.report_date)}</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isStale && (
+                      <span
+                        title="No report for current period. Showing latest available history."
+                        className="text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded uppercase flex items-center gap-1"
+                      >
+                        Historic
+                      </span>
+                    )}
+                    {snap && (
+                      <span className="text-xs text-slate-500">{formatDate(snap.report_date)}</span>
+                    )}
+                  </div>
                 </div>
                 <div className="text-base font-semibold text-slate-200 mb-3">
                   {portfolio.name}

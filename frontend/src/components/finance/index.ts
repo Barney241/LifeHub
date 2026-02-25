@@ -12,4 +12,7 @@ export { InvestmentDashboard } from './InvestmentDashboard';
 export { InvestmentImport } from './InvestmentImport';
 export { TransactionList } from './TransactionList';
 export { LoansDashboard } from './LoansDashboard';
+export { RecurringDashboard } from './RecurringDashboard';
+export { NetWorthDashboard } from './NetWorthDashboard';
+export { GoalsDashboard } from './GoalsDashboard';
 

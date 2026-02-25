@@ -23,8 +23,11 @@ import {
   FinanceDashboard,
   TransactionList,
   LoansDashboard,
+  RecurringDashboard,
+  NetWorthDashboard,
+  GoalsDashboard,
 } from '@/components/finance';
-import { Wallet, CheckCircle2, Calendar, Plus, LayoutDashboard, Menu, Settings, Puzzle, MapPin, Video, Upload, Tag, ChevronLeft, ChevronRight, TrendingUp, PiggyBank, Landmark } from 'lucide-react';
+import { Wallet, CheckCircle2, Calendar, Plus, LayoutDashboard, Menu, Settings, Puzzle, MapPin, Video, Upload, Tag, ChevronLeft, ChevronRight, TrendingUp, PiggyBank, Landmark, Repeat, BarChart3, Target } from 'lucide-react';
 
 export default function LifeHub() {
   const [showAddModal, setShowAddModal] = useState<'task' | 'transaction' | 'workspace' | 'marketplace' | 'import' | null>(null);
@@ -34,7 +37,7 @@ export default function LifeHub() {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [financeTab, setFinanceTab] = useState<'overview' | 'accounts' | 'categories' | 'investments' | 'budget' | 'loans'>('overview');
+  const [financeTab, setFinanceTab] = useState<'overview' | 'accounts' | 'categories' | 'investments' | 'budget' | 'loans' | 'recurring' | 'net-worth' | 'goals'>('overview');
   const [showInvestmentImport, setShowInvestmentImport] = useState(false);
   const [financePeriod, setFinancePeriod] = useState<string | null>('this-month'); // 'this-month', 'last-month', 'this-year', or null for all
   const [dateOffset, setDateOffset] = useState(0); // 0 = current period, 1 = previous period, etc.
@@ -107,6 +110,17 @@ export default function LifeHub() {
     createLoan,
     updateLoan,
     deleteLoan,
+    goals,
+    createGoal,
+    updateGoal,
+    deleteGoal,
+    netWorthHistory,
+    exchangeRates,
+    recurringPayments,
+    createRecurring,
+    updateRecurring,
+    deleteRecurring,
+    detectRecurring,
   } = useFinanceData({ workspaceId: activeWorkspace?.id || null, accountId: selectedAccountId, categoryId: selectedCategoryId, period: financePeriod, dateOffset, customDateRange });
 
   if (!user) return null;
@@ -123,10 +137,20 @@ export default function LifeHub() {
     }
   };
 
-  // Currency conversion (same rates as FinanceDashboard)
-  const RATES_TO_CZK: Record<string, number> = { CZK: 1, EUR: 25.2, USD: 23.5, GBP: 29.5 };
+  // Currency conversion (reusing cached exchange rates if available)
   const convertToDC = (value: number, from: string) => {
     if (from === displayCurrency) return value;
+
+    // Try using live exchange rates from the hook
+    const rate = exchangeRates.find(r => r.base_currency === from && r.target_currency === displayCurrency);
+    if (rate) return value * rate.rate;
+
+    // Try inverse
+    const invRate = exchangeRates.find(r => r.base_currency === displayCurrency && r.target_currency === from);
+    if (invRate) return value / invRate.rate;
+
+    // Fallback to hardcoded rates
+    const RATES_TO_CZK: Record<string, number> = { CZK: 1, EUR: 25.2, USD: 23.5, GBP: 29.5 };
     const inCZK = value * (RATES_TO_CZK[from] || 1);
     return inCZK / (RATES_TO_CZK[displayCurrency] || 1);
   };
@@ -631,10 +655,13 @@ export default function LifeHub() {
                   <div className="flex gap-2 flex-1">
                     {[
                       { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+                      { id: 'net-worth', label: 'Net Worth', icon: BarChart3 },
                       { id: 'accounts', label: 'Accounts', icon: Wallet },
-                      { id: 'budget', label: 'Budget', icon: PiggyBank },
-                      { id: 'loans', label: 'Loans', icon: Landmark },
                       { id: 'investments', label: 'Investments', icon: TrendingUp },
+                      { id: 'budget', label: 'Budget', icon: PiggyBank },
+                      { id: 'recurring', label: 'Subscriptions', icon: Repeat },
+                      { id: 'goals', label: 'Goals', icon: Target },
+                      { id: 'loans', label: 'Loans', icon: Landmark },
                       { id: 'categories', label: 'Categories', icon: Tag },
                     ].map((tab) => (
                       <button
@@ -820,6 +847,40 @@ export default function LifeHub() {
                     onApplyRules={applyRules}
                   />
 
+                )}
+                {financeTab === 'recurring' && (
+                  <RecurringDashboard
+                    recurringPayments={recurringPayments}
+                    merchants={merchants}
+                    accounts={accounts}
+                    currency={activeCurrency}
+                    onCreate={createRecurring}
+                    onUpdate={updateRecurring}
+                    onDelete={deleteRecurring}
+                    onDetect={() => detectRecurring(selectedAccountId || undefined)}
+                  />
+                )}
+
+                {financeTab === 'net-worth' && (
+                  <NetWorthDashboard
+                    accounts={accounts}
+                    portfolios={portfolios}
+                    loans={loans}
+                    history={netWorthHistory}
+                    exchangeRates={exchangeRates}
+                    baseCurrency={displayCurrency}
+                  />
+                )}
+
+                {financeTab === 'goals' && (
+                  <GoalsDashboard
+                    goals={goals}
+                    accounts={accounts}
+                    currency={activeCurrency}
+                    onCreate={createGoal}
+                    onUpdate={updateGoal}
+                    onDelete={deleteGoal}
+                  />
                 )}
 
                 {financeTab === 'loans' && (
