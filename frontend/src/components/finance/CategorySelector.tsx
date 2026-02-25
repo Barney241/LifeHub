@@ -11,7 +11,8 @@ interface CategorySelectorProps {
 export function CategorySelector({ categories, selectedCategoryId, onSelect }: CategorySelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+  const isUncategorized = selectedCategoryId === '__uncategorized';
+  const selectedCategory = isUncategorized ? null : categories.find((c) => c.id === selectedCategoryId);
 
   return (
     <div className="relative">
@@ -19,7 +20,12 @@ export function CategorySelector({ categories, selectedCategoryId, onSelect }: C
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 hover:bg-slate-700 transition-colors min-w-[160px]"
       >
-        {selectedCategory ? (
+        {isUncategorized ? (
+          <>
+            <div className="w-3 h-3 rounded-full shrink-0 bg-slate-500" />
+            <span className="font-medium text-slate-200 text-sm truncate">Uncategorized</span>
+          </>
+        ) : selectedCategory ? (
           <>
             <div
               className="w-3 h-3 rounded-full shrink-0"
@@ -63,7 +69,25 @@ export function CategorySelector({ categories, selectedCategoryId, onSelect }: C
 
             <div className="h-px bg-slate-700 my-1" />
 
-            {categories.map((category) => (
+            <button
+              onClick={() => {
+                onSelect('__uncategorized');
+                setIsOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 transition-colors ${
+                selectedCategoryId === '__uncategorized' ? 'bg-blue-600/20' : ''
+              }`}
+            >
+              <div className="w-4 h-4 rounded-full shrink-0 bg-slate-500" />
+              <span className="font-medium text-slate-200 text-sm truncate">Uncategorized</span>
+              <span className="text-[8px] bg-slate-700 px-1.5 py-0.5 rounded text-slate-500 ml-auto">
+                No category
+              </span>
+            </button>
+
+            <div className="h-px bg-slate-700 my-1" />
+
+            {categories.filter(c => c.name !== 'Uncategorized').map((category) => (
               <button
                 key={category.id}
                 onClick={() => {

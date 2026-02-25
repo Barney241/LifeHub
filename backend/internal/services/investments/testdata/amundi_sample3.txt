@@ -1,0 +1,81 @@
+                                                   Amundi Platforma
+                                                   ČTVRTLETNÍ ZPRÁVA O VÝVOJI
+                                                   MAJETKU k datu 30.09.2025
+
+
+           Datum vyhotovení zprávy: 23.10.2025                                                                                         Typ účtu: KLASIK
+
+Děkujeme Vám, že jste se rozhodl/a investovat se skupinou Amundi. Vážíme si Vaší důvěry. Chtěli bychom Vás
+požádat o kontrolu níže uvedených údajů.
+
+
+           Klientské informace a přehled majetku
+
+ Číslo smlouvy:              5544332211
+                                                                                                         CELKOVÁ HODNOTA
+ Klient:                     Petr Krejčí                                                                 MAJETKU
+ Datum narození:             08.06.1990
+                                                                                                          67 450 Kč
+ E-mail:                     petr.krejci@example.com                                                      Celková investovaná částka*
+                                                                                                          61 200 Kč
+ Adresa bydliště:            Kamenná 456, Olomouc, 779 00
+                                                                                                          Celkové vyplacené dividendy*
+                                                                                                          0 Kč
+ Distributor:                eDO finance, a.s.                                                            Zisk / ztráta*
+                                                                                                          6 250 Kč
+ Poradce:                    Jana Nová
+
+
+           Vývoj celkové hodnoty majetku a celkové investované částky
+
+
+Výpis z majetkového účtu vlastníka ze samostatné evidence investičních nástrojů vedené
+Amundi Czech Republic Asset Management, a.s., IČ: 25684558, se sídlem Rohanské nábřeží 693/10, 186 00, Praha 8.
+                                                           ČTVRTLETNÍ ZPRÁVA O VÝVOJI MAJETKU
+
+
+
+
+                                                                         Klient: Petr Krejčí, Číslo smlouvy: 5544332211
+                                                               Období výpisu: 01.07.2025 – 30.09.2025, výpis k: 30.09.2025
+
+STAVOVÝ VÝPIS
+Stavový výpis jednotlivých fondů
+ Název fondu                     Kategorie                          Počet kusů                 Cena za kus        Datum ceny    Celková hodnota   Měna
+ Schroders International
+                                 Akciový fond                           7,4560                   3 122,4500       30.09.2025           23 279,15   CZK
+ Selection Fund - A CZK (C)
+ Pictet Global Megatrend
+ Select CZK Hedged                Smíšený fond                           4,1230                  4 567,8900        30.09.2025            18 833,43   CZK
+ Class R (C)
+ JPMorgan Funds - Global
+ Healthcare - A CZKH -           Akciový fond                           1,8760                   7 234,5600       30.09.2025            13 567,82   CZK
+ Accumulation
+                                                                                                   CELKEM                              55 680,40   CZK
+
+
+ Název fondu                     Kategorie                          Počet kusů                 Cena za kus        Datum ceny    Celková hodnota   Měna
+ Robeco Global Consumer
+ Trends Fund                     Akciový fond                             0,5210                2 345,6700        30.09.2025              1 222,09   EUR
+ B EUR - Acc
+                                                                                                   CELKEM                                1 222,09   EUR
+
+
+ Název fondu                     Kategorie                          Počet kusů                 Cena za kus        Datum ceny    Celková hodnota   Měna
+ Franklin Technology
+                                 Akciový fond                          22,3400                     38,7600        30.09.2025               866,12   USD
+ FUND - B USD (C)
+                                                                                                   CELKEM                                 866,12   USD
+
+
+
+
+ZMĚNOVÝ VÝPIS
+Investice a odkupy – podílové fondy
+
+
+Doplňující informace
+ Seznam ISIN kódů a emitentů podílů investičních fondů
+ IE0033535075 Pictet Global Megatrend Select CZK Hedged Class R (C)                           LU0880062913 Robeco Global Consumer Trends Fund B EUR - Acc
+ US3546237048 Franklin Technology FUND - B USD (C)                                            LU1234509876 Schroders International Selection Fund - A CZK (C)
+ LU9876543210 JPMorgan Funds - Global Healthcare - A CZKH - Accumulation

@@ -1,0 +1,7 @@
+Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+Transfer,Current,2023-01-16 13:05:51,2023-01-16 13:05:52,Transfer to MICHAL RIHA,-140.00,0.00,CZK,COMPLETED,568.57
+Exchange,Current,2023-01-21 14:05:13,2023-01-21 14:05:13,Exchanged to USD,-220.71,2.21,CZK,COMPLETED,345.65
+Deposit,Current,2023-02-10 13:50:36,2023-02-10 13:50:44,Apple Pay deposit by *1919,1000.00,0.00,CZK,COMPLETED,1055.65
+Card Payment,Current,2023-03-15 10:30:00,2023-03-15 10:30:01,Tesco Stores,-250.00,0.00,CZK,COMPLETED,805.65
+Transfer,Current,2023-04-01 09:00:00,2023-04-01 09:00:01,Salary from employer,25000.00,0.00,CZK,COMPLETED,25805.65
+Transfer,Current,2023-04-02 10:00:00,,Pending transfer,-100.00,0.00,CZK,PENDING,25705.65

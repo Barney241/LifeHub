@@ -1,10 +1,12 @@
-# 🌟 LifeHub
+# 🌟 LifeHub (WIP)
 
 > **One Space. Every Workspace. Total Control.**
 
 LifeHub is your centralized "Command Center" for everything that matters. Whether it's tracking finances, managing work tasks, or checking your personal calendar, LifeHub brings it all together into a beautiful, type-safe, and highly secure ecosystem.
 
 Designed for the modern multi-tasker, LifeHub works perfectly on **Desktop**, **Mobile**, and even low-power **E-Ink (Inkplate 6)** displays.
+
+Disclaimer: This is vibe coded personal hobby project tailored to my needs. If you need something you need to work it and change it yourself
 
 ---
 

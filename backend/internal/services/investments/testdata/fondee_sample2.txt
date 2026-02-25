@@ -1,0 +1,24 @@
+
+
+                                         Výpis z portfolia
+
+  Klient                   Eva Marková
+  Název portfolia          Risk je zisk
+  Období                   1. 1. 2026 – 31. 1. 2026
+
+
+  Počáteční hodnota:                                                           75 000 Kč
+  Koncová hodnota:                                                             77 500 Kč
+  Zhodnocení:                                                                   2 500 Kč
+  Poplatek:                                                                        32 Kč
+
+
+  Složení portfolia
+
+  Název ETF                                          ISIN               Podíl      Hodnota
+  Stellar Global Equity UCITS ETF                    IE00X1Y2Z3A4       60,00%     46 500 Kč
+  Pacific Rim Markets UCITS ETF                      IE00E9F0G1H2       25,00%     19 375 Kč
+  Frontier Small Cap Opportunities ETF               IE00M7N8O9P0       15,00%     11 625 Kč
+
+
+                                         Strana 1 z 1

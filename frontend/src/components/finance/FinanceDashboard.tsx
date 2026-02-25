@@ -16,8 +16,8 @@ import {
   AreaChart,
   Area,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Receipt, Flame } from 'lucide-react';
-import { FinanceStats, FinancialRecord } from '@/types';
+import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Receipt, Flame, Landmark, PiggyBank } from 'lucide-react';
+import { FinanceStats, FinancialRecord, InvestmentPortfolio, Account, BudgetSummary } from '@/types';
 
 interface FinanceDashboardProps {
   stats: FinanceStats | null;
@@ -25,6 +25,11 @@ interface FinanceDashboardProps {
   categories?: { id: string; name: string; color?: string }[];
   onCategorySelect?: (categoryId: string | null) => void;
   currency?: string;
+  displayCurrency?: string;
+  portfolios?: InvestmentPortfolio[];
+  accounts?: Account[];
+  onViewInvestments?: () => void;
+  budgetStatus?: BudgetSummary | null;
 }
 
 const COLORS = [
@@ -38,7 +43,25 @@ const COLORS = [
   '#84cc16', // lime
 ];
 
-export function FinanceDashboard({ stats, transactions, categories = [], onCategorySelect, currency = 'CZK' }: FinanceDashboardProps) {
+const RATES_TO_CZK: Record<string, number> = { CZK: 1, EUR: 25.2, USD: 23.5, GBP: 29.5 };
+const convertCurrency = (value: number, from: string, to: string): number => {
+  if (from === to) return value;
+  const inCZK = value * (RATES_TO_CZK[from] || 1);
+  return inCZK / (RATES_TO_CZK[to] || 1);
+};
+
+export function FinanceDashboard({
+  stats,
+  transactions,
+  categories = [],
+  onCategorySelect,
+  currency = 'CZK',
+  displayCurrency: dc,
+  portfolios = [],
+  accounts = [],
+  onViewInvestments,
+  budgetStatus,
+}: FinanceDashboardProps) {
   // Map category names to info for quick lookup
   const categoryByName = useMemo(() => {
     const map: Record<string, { id: string; color: string }> = {};
@@ -48,8 +71,12 @@ export function FinanceDashboard({ stats, transactions, categories = [], onCateg
 
   const handleCategoryClick = (categoryName: string) => {
     if (onCategorySelect) {
-      const categoryId = categoryByName[categoryName]?.id;
-      onCategorySelect(categoryId || null);
+      if (categoryName === 'Uncategorized') {
+        onCategorySelect('__uncategorized');
+      } else {
+        const categoryId = categoryByName[categoryName]?.id;
+        onCategorySelect(categoryId || null);
+      }
     }
   };
   const formatCurrency = (amount: number) => {
@@ -58,6 +85,15 @@ export function FinanceDashboard({ stats, transactions, categories = [], onCateg
       currency,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const fmtDC = dc || currency;
+  const formatPortfolioValue = (value: number, portfolioCurrency: string) => {
+    const converted = convertCurrency(value, portfolioCurrency || 'CZK', fmtDC);
+    const primary = new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: fmtDC, maximumFractionDigits: 0 }).format(converted);
+    if ((portfolioCurrency || 'CZK') === fmtDC) return primary;
+    const original = new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: portfolioCurrency, maximumFractionDigits: 0 }).format(value);
+    return `${primary} (${original})`;
   };
 
   // Category pie chart data with colors (all non-zero categories)
@@ -271,9 +307,8 @@ export function FinanceDashboard({ stats, transactions, categories = [], onCateg
               Net Balance
             </span>
             <div
-              className={`p-2 rounded-lg ${
-                stats.net_balance >= 0 ? 'bg-emerald-900/30' : 'bg-rose-900/30'
-              }`}
+              className={`p-2 rounded-lg ${stats.net_balance >= 0 ? 'bg-emerald-900/30' : 'bg-rose-900/30'
+                }`}
             >
               {stats.net_balance >= 0 ? (
                 <TrendingUp size={16} className="text-emerald-400" />
@@ -283,9 +318,8 @@ export function FinanceDashboard({ stats, transactions, categories = [], onCateg
             </div>
           </div>
           <div
-            className={`text-2xl font-bold ${
-              stats.net_balance >= 0 ? 'text-emerald-400' : 'text-rose-400'
-            }`}
+            className={`text-2xl font-bold ${stats.net_balance >= 0 ? 'text-emerald-400' : 'text-rose-400'
+              }`}
           >
             {formatCurrency(stats.net_balance)}
           </div>
@@ -315,6 +349,104 @@ export function FinanceDashboard({ stats, transactions, categories = [], onCateg
           </div>
         </div>
       </div>
+
+      {/* Total Net Worth - Accounts + Investments */}
+      {(accounts.length > 0 || portfolios.length > 0) && (
+        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5">
+          {/* Overall total header */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Total Net Worth
+              </span>
+              <div className="text-2xl font-bold text-blue-300 mt-1">
+                {new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: fmtDC, maximumFractionDigits: 0 }).format(
+                  accounts.filter(a => a.is_active).reduce((sum, a) => sum + convertCurrency(a.current_balance, a.currency || currency, fmtDC), 0) +
+                  portfolios.reduce((sum, p) => sum + convertCurrency(p.latest_snapshot?.end_value || 0, p.currency || 'CZK', fmtDC), 0)
+                )}
+              </div>
+            </div>
+            <div className="p-2 rounded-lg bg-blue-900/30">
+              <PiggyBank size={16} className="text-blue-400" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Accounts column: total + breakdown */}
+            {accounts.length > 0 && (
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Landmark size={14} className="text-slate-400" />
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Accounts</span>
+                </div>
+                <div className="text-xl font-bold text-slate-200 mb-3">
+                  {formatCurrency(accounts.filter(a => a.is_active).reduce((sum, a) => sum + a.current_balance, 0))}
+                </div>
+                <div className="border-t border-slate-700/50 pt-2 space-y-1.5">
+                  {accounts.filter(a => a.is_active).map((a) => (
+                    <div key={a.id} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {a.icon && <span className="text-xs">{a.icon}</span>}
+                        <span className="text-slate-400 truncate">{a.name}</span>
+                      </div>
+                      <span className="font-medium text-slate-300 shrink-0 ml-2">
+                        {formatCurrency(a.current_balance)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Investments column: total + breakdown */}
+            {portfolios.length > 0 && (
+              <div
+                className={`bg-slate-800/50 rounded-xl p-4 ${onViewInvestments ? 'cursor-pointer hover:bg-slate-800/70 transition-colors' : ''}`}
+                onClick={onViewInvestments}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp size={14} className="text-violet-400" />
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Investments</span>
+                </div>
+                <div className="text-xl font-bold text-slate-200">
+                  {new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: fmtDC, maximumFractionDigits: 0 }).format(
+                    portfolios.reduce((sum, p) => sum + convertCurrency(p.latest_snapshot?.end_value || 0, p.currency || 'CZK', fmtDC), 0)
+                  )}
+                </div>
+                {(() => {
+                  const totalGain = portfolios.reduce((sum, p) => sum + convertCurrency(p.latest_snapshot?.gain_loss || 0, p.currency || 'CZK', fmtDC), 0);
+                  return (
+                    <div className={`text-xs mb-3 ${totalGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {totalGain >= 0 ? '+' : ''}{new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: fmtDC, maximumFractionDigits: 0 }).format(totalGain)} gain/loss
+                    </div>
+                  );
+                })()}
+                <div className="border-t border-slate-700/50 pt-2 space-y-1.5">
+                  {portfolios.map((p) => {
+                    const snap = p.latest_snapshot;
+                    if (!snap) return null;
+                    const pctGain = snap.invested > 0 ? ((snap.gain_loss / snap.invested) * 100).toFixed(1) : null;
+                    return (
+                      <div key={p.id} className="flex items-center justify-between text-sm">
+                        <div className="min-w-0">
+                          <span className="text-slate-400 truncate">{p.name}</span>
+                          <span className="text-xs text-slate-600 ml-1">{p.provider}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <span className="font-medium text-slate-300">{formatPortfolioValue(snap.end_value, p.currency)}</span>
+                          <span className={`text-xs ${snap.gain_loss >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {pctGain && `${snap.gain_loss >= 0 ? '+' : ''}${pctGain}%`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -372,69 +504,21 @@ export function FinanceDashboard({ stats, transactions, categories = [], onCateg
           )}
         </div>
 
-        {/* Monthly Cash Flow */}
+        {/* Budget vs Actual (Replaces Monthly Cash Flow) */}
         <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5">
-          <h3 className="font-bold text-slate-200 mb-4">Monthly Cash Flow</h3>
-          {monthlyData.length > 0 ? (
-            <div className="space-y-4">
-              <div className="h-32">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyData}>
-                    <XAxis
-                      dataKey="month"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: '#64748b', fontSize: 11 }}
-                    />
-                    <YAxis hide />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #334155',
-                        borderRadius: '8px',
-                      }}
-                      labelStyle={{ color: '#e2e8f0' }}
-                      formatter={(value) => {
-                        const v = value as number;
-                        return [formatCurrency(Math.abs(v)), v >= 0 ? 'Saved' : 'Overspent'];
-                      }}
-                    />
-                    <Bar
-                      dataKey="net"
-                      radius={[4, 4, 4, 4]}
-                      fill="#64748b"
-                    >
-                      {monthlyData.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={entry.net >= 0 ? '#10b981' : '#ef4444'}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              {/* Summary row */}
-              <div className="flex justify-between text-xs border-t border-slate-800 pt-3">
-                <div>
-                  <span className="text-slate-500">Total In: </span>
-                  <span className="text-emerald-400 font-medium">{formatCurrency(monthlyData.reduce((s, m) => s + m.income, 0))}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Total Out: </span>
-                  <span className="text-rose-400 font-medium">{formatCurrency(monthlyData.reduce((s, m) => s + m.expenses, 0))}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Net: </span>
-                  <span className={`font-medium ${monthlyData.reduce((s, m) => s + m.net, 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {formatCurrency(monthlyData.reduce((s, m) => s + m.net, 0))}
-                  </span>
-                </div>
-              </div>
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-slate-200">Budget vs Actual</h3>
+            {budgetStatus && (
+              <span className="text-xs text-slate-500">
+                {budgetStatus.total_actual > budgetStatus.total_budgeted ? 'Over budget' : 'On track'}
+              </span>
+            )}
+          </div>
+          {budgetStatus ? (
+            <BudgetComparisonMini budgetStatus={budgetStatus} currency={currency} />
           ) : (
-            <div className="h-40 flex items-center justify-center text-slate-500 text-sm">
-              No monthly data
+            <div className="h-40 flex items-center justify-center text-slate-500 text-sm italic">
+              No budget data for this period
             </div>
           )}
         </div>
@@ -451,8 +535,8 @@ export function FinanceDashboard({ stats, transactions, categories = [], onCateg
                 <AreaChart data={dailySpendingData}>
                   <defs>
                     <linearGradient id="spendingGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <XAxis
@@ -542,3 +626,74 @@ export function FinanceDashboard({ stats, transactions, categories = [], onCateg
     </div>
   );
 }
+
+// ─── Budget Comparison Mini ───────────────────────────────────────────────────
+function BudgetComparisonMini({ budgetStatus, currency }: { budgetStatus: BudgetSummary; currency: string }) {
+  const barData = budgetStatus.budgets.map((gs, idx) => {
+    const name = gs.budget.name.replace(/^\p{Emoji}+\s*/u, '').trim();
+    return {
+      name,
+      budgeted: gs.total_budgeted,
+      actual: gs.total_actual,
+      over: gs.total_actual > gs.total_budgeted,
+      color: COLORS[idx % COLORS.length],
+    };
+  }).filter(d => d.budgeted > 0 || d.actual > 0);
+
+  const maxVal = Math.max(...barData.map(d => Math.max(d.budgeted, d.actual)), 1);
+  const fmt = (val: number) => new Intl.NumberFormat('cs-CZ', { style: 'currency', currency, maximumFractionDigits: 0 }).format(val);
+
+  return (
+    <div className="space-y-3">
+      {barData.length > 0 ? (
+        barData.map((d) => {
+          const budgetPct = (d.budgeted / maxVal) * 100;
+          const actualPct = Math.min((d.actual / maxVal) * 100, 100);
+          const overPct = d.actual > d.budgeted
+            ? Math.min(((d.actual - d.budgeted) / maxVal) * 100, 100 - budgetPct)
+            : 0;
+          return (
+            <div key={d.name}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-slate-400 truncate max-w-[100px]">{d.name}</span>
+                <div className="flex items-center gap-1.5 text-[10px] shrink-0">
+                  <span className="text-slate-500">{fmt(d.actual)}</span>
+                  <span className="text-slate-700">/</span>
+                  <span className="text-slate-600 font-semibold">{fmt(d.budgeted)}</span>
+                </div>
+              </div>
+              <div className="relative h-2 rounded-full overflow-hidden bg-slate-800">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full opacity-20"
+                  style={{ width: `${budgetPct}%`, backgroundColor: d.color }}
+                />
+                <div
+                  className={`absolute inset-y-0 left-0 rounded-full transition-all ${d.over ? 'bg-rose-500' : ''}`}
+                  style={{
+                    width: `${actualPct}%`,
+                    backgroundColor: d.over ? undefined : d.color,
+                  }}
+                />
+                {overPct > 0 && (
+                  <div
+                    className="absolute inset-y-0 bg-rose-600"
+                    style={{ left: `${budgetPct}%`, width: `${overPct}%` }}
+                  />
+                )}
+                <div
+                  className="absolute inset-y-0 w-px bg-white/40"
+                  style={{ left: `${budgetPct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })
+      ) : (
+        <div className="h-32 flex items-center justify-center text-slate-600 text-xs italic">
+          No budget items assigned
+        </div>
+      )}
+    </div>
+  );
+}
+

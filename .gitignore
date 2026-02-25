@@ -15,5 +15,13 @@ build/
 pb_data/
 pb_public/
 
+# Nix
+.direnv
+result
+
+# PDFs (may contain personal data)
+*.pdf
+
 # OS
 .DS_Store
+/.devenv

@@ -4,14 +4,20 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
 
 	"lifehub/backend/internal/domain"
+	"lifehub/backend/internal/services/budget"
 	"lifehub/backend/internal/services/categorization"
 	"lifehub/backend/internal/services/csvimport"
+	"lifehub/backend/internal/services/investments"
 	"lifehub/backend/internal/services/recurring"
 	"lifehub/backend/internal/sources"
 	"lifehub/backend/internal/sources/debug"
@@ -45,6 +51,7 @@ func main() {
 	csvimport.App = app
 	categorization.App = app
 	recurring.App = app
+	budget.App = app
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// ============================================
@@ -637,7 +644,19 @@ func main() {
 			if accountID != "" {
 				filter += " && account = '" + accountID + "'"
 			}
-			if categoryID != "" {
+			if categoryID == "__uncategorized" {
+				// Find the "Uncategorized" category ID to include both empty and explicit
+				uncatID := ""
+				cats, _ := app.FindRecordsByFilter("finance_categories", "workspace = '"+workspaceID+"' && name = 'Uncategorized'", "", 1, 0)
+				if len(cats) > 0 {
+					uncatID = cats[0].Id
+				}
+				if uncatID != "" {
+					filter += " && (category_rel = '' || category_rel = '" + uncatID + "')"
+				} else {
+					filter += " && category_rel = ''"
+				}
+			} else if categoryID != "" {
 				filter += " && category_rel = '" + categoryID + "'"
 			}
 
@@ -727,6 +746,704 @@ func main() {
 			}
 
 			return e.JSON(http.StatusOK, stats)
+		})
+
+		// ============================================
+		// Finance: Income Sources
+		// ============================================
+		e.Router.GET("/api/finance/income-sources", func(e *core.RequestEvent) error {
+			workspaceID := e.Request.URL.Query().Get("workspace")
+			if workspaceID == "" {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "workspace required"})
+			}
+
+			filter := "workspace = '" + workspaceID + "'"
+			records, err := app.FindRecordsByFilter("finance_income_sources", filter, "name", 100, 0)
+			if err != nil {
+				return e.JSON(http.StatusOK, []map[string]any{})
+			}
+
+			items := []map[string]any{}
+			for _, r := range records {
+				items = append(items, map[string]any{
+					"id":            r.Id,
+					"name":          r.GetString("name"),
+					"income_type":   r.GetString("income_type"),
+					"amount":        r.GetFloat("amount"),
+					"currency":      r.GetString("currency"),
+					"default_hours": r.GetFloat("default_hours"),
+					"is_active":     r.GetBool("is_active"),
+					"notes":         r.GetString("notes"),
+				})
+			}
+			return e.JSON(http.StatusOK, items)
+		})
+
+		e.Router.POST("/api/finance/income-sources", func(e *core.RequestEvent) error {
+			var body map[string]any
+			if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			}
+			collection, err := app.FindCollectionByNameOrId("finance_income_sources")
+			if err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			record := core.NewRecord(collection)
+			for k, v := range body {
+				record.Set(k, v)
+			}
+			if err := app.Save(record); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			return e.JSON(http.StatusOK, map[string]string{"id": record.Id})
+		})
+
+		e.Router.PUT("/api/finance/income-sources/{id}", func(e *core.RequestEvent) error {
+			id := e.Request.PathValue("id")
+			record, err := app.FindRecordById("finance_income_sources", id)
+			if err != nil {
+				return e.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+			}
+			var body map[string]any
+			if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			}
+			for k, v := range body {
+				record.Set(k, v)
+			}
+			if err := app.Save(record); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			return e.JSON(http.StatusOK, map[string]string{"status": "ok"})
+		})
+
+		e.Router.DELETE("/api/finance/income-sources/{id}", func(e *core.RequestEvent) error {
+			id := e.Request.PathValue("id")
+			record, err := app.FindRecordById("finance_income_sources", id)
+			if err != nil {
+				return e.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+			}
+			if err := app.Delete(record); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			return e.JSON(http.StatusOK, map[string]string{"status": "ok"})
+		})
+
+		// ============================================
+		// Finance: Income Hours
+		// ============================================
+		e.Router.GET("/api/finance/income-hours", func(e *core.RequestEvent) error {
+			workspaceID := e.Request.URL.Query().Get("workspace")
+			year := e.Request.URL.Query().Get("year")
+			month := e.Request.URL.Query().Get("month")
+
+			if workspaceID == "" {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "workspace required"})
+			}
+
+			filter := "workspace = '" + workspaceID + "'"
+			if year != "" {
+				filter += " && year = " + year
+			}
+			if month != "" {
+				filter += " && month = " + month
+			}
+
+			records, err := app.FindRecordsByFilter("finance_income_hours", filter, "", 100, 0)
+			if err != nil {
+				return e.JSON(http.StatusOK, []map[string]any{})
+			}
+
+			items := []map[string]any{}
+			for _, r := range records {
+				items = append(items, map[string]any{
+					"id":            r.Id,
+					"income_source": r.GetString("income_source"),
+					"year":          int(r.GetFloat("year")),
+					"month":         int(r.GetFloat("month")),
+					"hours":         r.GetFloat("hours"),
+				})
+			}
+			return e.JSON(http.StatusOK, items)
+		})
+
+		e.Router.PUT("/api/finance/income-hours", func(e *core.RequestEvent) error {
+			var body struct {
+				IncomeSource string  `json:"income_source"`
+				Year         int     `json:"year"`
+				Month        int     `json:"month"`
+				Hours        float64 `json:"hours"`
+				Workspace    string  `json:"workspace"`
+			}
+			if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			}
+
+			// Upsert: find existing or create new
+			filter := fmt.Sprintf("workspace = '%s' && income_source = '%s' && year = %d && month = %d",
+				body.Workspace, body.IncomeSource, body.Year, body.Month)
+			existing, _ := app.FindRecordsByFilter("finance_income_hours", filter, "", 1, 0)
+
+			if len(existing) > 0 {
+				existing[0].Set("hours", body.Hours)
+				if err := app.Save(existing[0]); err != nil {
+					return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				}
+				return e.JSON(http.StatusOK, map[string]string{"id": existing[0].Id, "status": "updated"})
+			}
+
+			collection, err := app.FindCollectionByNameOrId("finance_income_hours")
+			if err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			record := core.NewRecord(collection)
+			record.Set("income_source", body.IncomeSource)
+			record.Set("year", body.Year)
+			record.Set("month", body.Month)
+			record.Set("hours", body.Hours)
+			record.Set("workspace", body.Workspace)
+			if err := app.Save(record); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			return e.JSON(http.StatusOK, map[string]string{"id": record.Id, "status": "created"})
+		})
+
+		// ============================================
+		// Finance: Budgets
+		// ============================================
+		e.Router.GET("/api/finance/budgets", func(e *core.RequestEvent) error {
+			workspaceID := e.Request.URL.Query().Get("workspace")
+			if workspaceID == "" {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "workspace required"})
+			}
+
+			filter := "workspace = '" + workspaceID + "'"
+			records, err := app.FindRecordsByFilter("finance_budgets", filter, "sort_order", 100, 0)
+			if err != nil {
+				return e.JSON(http.StatusOK, []map[string]any{})
+			}
+
+			budgets := []map[string]any{}
+			for _, r := range records {
+				b := map[string]any{
+					"id":         r.Id,
+					"name":       r.GetString("name"),
+					"icon":       r.GetString("icon"),
+					"color":      r.GetString("color"),
+					"sort_order": int(r.GetFloat("sort_order")),
+					"is_active":  r.GetBool("is_active"),
+				}
+
+				// Load items
+				itemFilter := "budget = '" + r.Id + "' && workspace = '" + workspaceID + "'"
+				itemRecords, err := app.FindRecordsByFilter("finance_budget_items", itemFilter, "sort_order", 100, 0)
+				if err == nil {
+					items := []map[string]any{}
+					for _, ir := range itemRecords {
+						items = append(items, map[string]any{
+							"id":                 ir.Id,
+							"budget_id":           ir.GetString("budget"),
+							"name":               ir.GetString("name"),
+							"budgeted_amount":    ir.GetFloat("budgeted_amount"),
+							"currency":           ir.GetString("currency"),
+							"frequency":          ir.GetString("frequency"),
+							"match_pattern":      ir.GetString("match_pattern"),
+							"match_pattern_type": ir.GetString("match_pattern_type"),
+							"match_field":        ir.GetString("match_field"),
+							"match_category_id":  ir.GetString("match_category"),
+							"match_merchant_id":  ir.GetString("match_merchant"),
+							"match_account_id":   ir.GetString("match_account"),
+							"is_expense":         ir.GetBool("is_expense"),
+							"sort_order":         int(ir.GetFloat("sort_order")),
+							"is_active":          ir.GetBool("is_active"),
+							"notes":              ir.GetString("notes"),
+						})
+					}
+					b["items"] = items
+				}
+
+				budgets = append(budgets, b)
+			}
+			return e.JSON(http.StatusOK, budgets)
+		})
+
+		e.Router.POST("/api/finance/budgets", func(e *core.RequestEvent) error {
+			var body map[string]any
+			if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			}
+			collection, err := app.FindCollectionByNameOrId("finance_budgets")
+			if err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			record := core.NewRecord(collection)
+			for k, v := range body {
+				record.Set(k, v)
+			}
+			if err := app.Save(record); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			return e.JSON(http.StatusOK, map[string]string{"id": record.Id})
+		})
+
+		e.Router.PUT("/api/finance/budgets/{id}", func(e *core.RequestEvent) error {
+			id := e.Request.PathValue("id")
+			record, err := app.FindRecordById("finance_budgets", id)
+			if err != nil {
+				return e.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+			}
+			var body map[string]any
+			if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			}
+			for k, v := range body {
+				record.Set(k, v)
+			}
+			if err := app.Save(record); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			return e.JSON(http.StatusOK, map[string]string{"status": "ok"})
+		})
+
+		e.Router.DELETE("/api/finance/budgets/{id}", func(e *core.RequestEvent) error {
+			id := e.Request.PathValue("id")
+
+			// Cascade delete items
+			itemFilter := "budget = '" + id + "'"
+			items, _ := app.FindRecordsByFilter("finance_budget_items", itemFilter, "", 0, 0)
+			for _, item := range items {
+				app.Delete(item)
+			}
+
+			record, err := app.FindRecordById("finance_budgets", id)
+			if err != nil {
+				return e.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+			}
+			if err := app.Delete(record); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			return e.JSON(http.StatusOK, map[string]string{"status": "ok"})
+		})
+
+		// ============================================
+		// Finance: Budget Items
+		// ============================================
+		e.Router.POST("/api/finance/budget-items", func(e *core.RequestEvent) error {
+			var body map[string]any
+			if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			}
+			collection, err := app.FindCollectionByNameOrId("finance_budget_items")
+			if err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			record := core.NewRecord(collection)
+			for k, v := range body {
+				record.Set(k, v)
+			}
+			if err := app.Save(record); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			return e.JSON(http.StatusOK, map[string]string{"id": record.Id})
+		})
+
+		e.Router.PUT("/api/finance/budget-items/{id}", func(e *core.RequestEvent) error {
+			id := e.Request.PathValue("id")
+			record, err := app.FindRecordById("finance_budget_items", id)
+			if err != nil {
+				return e.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+			}
+			var body map[string]any
+			if err := json.NewDecoder(e.Request.Body).Decode(&body); err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			}
+			for k, v := range body {
+				record.Set(k, v)
+			}
+			if err := app.Save(record); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			return e.JSON(http.StatusOK, map[string]string{"status": "ok"})
+		})
+
+		e.Router.DELETE("/api/finance/budget-items/{id}", func(e *core.RequestEvent) error {
+			id := e.Request.PathValue("id")
+			record, err := app.FindRecordById("finance_budget_items", id)
+			if err != nil {
+				return e.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+			}
+			if err := app.Delete(record); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+			return e.JSON(http.StatusOK, map[string]string{"status": "ok"})
+		})
+
+		// ============================================
+		// Finance: Budget Status (computed summary)
+		// ============================================
+		e.Router.GET("/api/finance/budget/status", func(e *core.RequestEvent) error {
+			workspaceID := e.Request.URL.Query().Get("workspace")
+			startDateStr := e.Request.URL.Query().Get("start_date")
+			endDateStr := e.Request.URL.Query().Get("end_date")
+
+			if workspaceID == "" || startDateStr == "" || endDateStr == "" {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "workspace, start_date, and end_date required"})
+			}
+
+			startDate, err := time.Parse("2006-01-02", startDateStr)
+			if err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid start_date format"})
+			}
+			endDate, err := time.Parse("2006-01-02", endDateStr)
+			if err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "invalid end_date format"})
+			}
+
+			summary, err := budget.ComputeStatus(workspaceID, startDate, endDate)
+			if err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			}
+
+			return e.JSON(http.StatusOK, summary)
+		})
+
+		// ============================================
+		// Investments: Import PDF
+		// ============================================
+		e.Router.POST("/api/investments/import", func(e *core.RequestEvent) error {
+			file, _, err := e.Request.FormFile("file")
+			if err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "file required"})
+			}
+			defer file.Close()
+
+			workspaceID := e.Request.FormValue("workspace")
+			provider := e.Request.FormValue("provider")
+			password := e.Request.FormValue("password")
+
+			if workspaceID == "" || provider == "" {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "workspace and provider required"})
+			}
+			validProviders := map[string]bool{"fondee": true, "amundi": true, "revolut-stocks": true, "revolut-crypto": true}
+			if !validProviders[provider] {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "provider must be one of: fondee, amundi, revolut-stocks, revolut-crypto"})
+			}
+
+			// Read uploaded file
+			data, err := io.ReadAll(file)
+			if err != nil {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "failed to read file"})
+			}
+
+			// Parse based on provider
+			var snapshot *investments.PortfolioSnapshot
+			isCSVProvider := provider == "revolut-stocks" || provider == "revolut-crypto"
+
+			if isCSVProvider {
+				// CSV-based providers (Revolut)
+				switch provider {
+				case "revolut-stocks":
+					snapshot, err = investments.ParseRevolutStocks(data)
+				case "revolut-crypto":
+					snapshot, err = investments.ParseRevolutCrypto(data)
+				}
+				if err != nil {
+					return e.JSON(http.StatusBadRequest, map[string]string{"error": "failed to parse CSV: " + err.Error()})
+				}
+			} else {
+				// PDF-based providers (Fondee, Amundi)
+				tmpDir, err := os.MkdirTemp("", "investment-import-*")
+				if err != nil {
+					return e.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create temp dir"})
+				}
+				defer os.RemoveAll(tmpDir)
+
+				pdfPath := filepath.Join(tmpDir, "upload.pdf")
+				if err := os.WriteFile(pdfPath, data, 0600); err != nil {
+					return e.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to save file"})
+				}
+
+				// Decrypt if password provided
+				if password != "" {
+					decryptedPath := filepath.Join(tmpDir, "decrypted.pdf")
+					cmd := exec.Command("qpdf", "--password="+password, "--decrypt", pdfPath, decryptedPath)
+					if out, err := cmd.CombinedOutput(); err != nil {
+						log.Printf("qpdf decrypt failed: %s", string(out))
+						return e.JSON(http.StatusBadRequest, map[string]string{"error": "failed to decrypt PDF"})
+					}
+					pdfPath = decryptedPath
+				}
+
+				// Extract text with pdftotext
+				cmd := exec.Command("pdftotext", "-layout", pdfPath, "-")
+				textBytes, err := cmd.Output()
+				if err != nil {
+					return e.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to extract text from PDF"})
+				}
+				text := string(textBytes)
+
+				switch provider {
+				case "fondee":
+					snapshot, err = investments.ParseFondee(text)
+				case "amundi":
+					snapshot, err = investments.ParseAmundi(text)
+				}
+				if err != nil {
+					return e.JSON(http.StatusBadRequest, map[string]string{"error": "failed to parse PDF: " + err.Error()})
+				}
+			}
+
+			// Validate parsed data based on provider
+			var validationErrors []string
+			if snapshot.ReportDate.IsZero() {
+				validationErrors = append(validationErrors, "report date not found")
+			}
+
+			switch provider {
+			case "fondee":
+				if snapshot.EndValue == 0 {
+					validationErrors = append(validationErrors, "end value not found or zero")
+				}
+				if snapshot.PortfolioName == "" {
+					validationErrors = append(validationErrors, "portfolio name not found")
+				}
+				if snapshot.PeriodStart.IsZero() || snapshot.PeriodEnd.IsZero() {
+					validationErrors = append(validationErrors, "period dates not found")
+				}
+				if snapshot.StartValue == 0 {
+					validationErrors = append(validationErrors, "start value not found or zero")
+				}
+			case "amundi":
+				if snapshot.EndValue == 0 {
+					validationErrors = append(validationErrors, "end value not found or zero")
+				}
+				if snapshot.ContractID == "" {
+					validationErrors = append(validationErrors, "contract ID not found")
+				}
+				if snapshot.Invested == 0 {
+					validationErrors = append(validationErrors, "invested amount not found or zero")
+				}
+				if len(snapshot.Holdings) == 0 {
+					validationErrors = append(validationErrors, "no holdings found")
+				}
+				for i, h := range snapshot.Holdings {
+					if h.Name == "" {
+						validationErrors = append(validationErrors, fmt.Sprintf("holding %d: name missing", i+1))
+					}
+					if h.TotalValue == 0 {
+						validationErrors = append(validationErrors, fmt.Sprintf("holding %d (%s): total value is zero", i+1, h.Name))
+					}
+				}
+			case "revolut-stocks", "revolut-crypto":
+				if len(snapshot.Holdings) == 0 {
+					validationErrors = append(validationErrors, "no holdings found")
+				}
+			}
+
+			if len(validationErrors) > 0 {
+				return e.JSON(http.StatusBadRequest, map[string]any{
+					"error":             "parsed data validation failed",
+					"validation_errors": validationErrors,
+					"partial_snapshot":  snapshot,
+				})
+			}
+
+			// Find or create portfolio
+			portfolioFilter := "provider = '" + provider + "' && workspace = '" + workspaceID + "'"
+			if snapshot.PortfolioName != "" {
+				portfolioFilter += " && name = '" + snapshot.PortfolioName + "'"
+			}
+
+			var portfolioID string
+			existing, err := app.FindRecordsByFilter("investment_portfolios", portfolioFilter, "", 1, 0)
+			if err == nil && len(existing) > 0 {
+				portfolioID = existing[0].Id
+			} else {
+				portfolioCol, err := app.FindCollectionByNameOrId("investment_portfolios")
+				if err != nil {
+					return e.JSON(http.StatusInternalServerError, map[string]string{"error": "investment_portfolios collection not found"})
+				}
+				portfolioRec := core.NewRecord(portfolioCol)
+				portfolioRec.Set("provider", provider)
+				portfolioRec.Set("name", snapshot.PortfolioName)
+				portfolioRec.Set("contract_id", snapshot.ContractID)
+				portfolioRec.Set("currency", snapshot.Currency)
+				portfolioRec.Set("workspace", workspaceID)
+				if err := app.Save(portfolioRec); err != nil {
+					return e.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create portfolio: " + err.Error()})
+				}
+				portfolioID = portfolioRec.Id
+			}
+
+			// Check for duplicate snapshot (same portfolio + report_date)
+			reportDateStr := snapshot.ReportDate.Format("2006-01-02 15:04:05.000Z")
+			dupeFilter := "portfolio = '" + portfolioID + "' && report_date = '" + reportDateStr + "'"
+			dupes, _ := app.FindRecordsByFilter("investment_snapshots", dupeFilter, "", 1, 0)
+			if len(dupes) > 0 {
+				return e.JSON(http.StatusConflict, map[string]any{
+					"error":        "duplicate snapshot",
+					"message":      "A snapshot for this portfolio with report date " + snapshot.ReportDate.Format("2006-01-02") + " already exists",
+					"snapshot_id":  dupes[0].Id,
+					"portfolio_id": portfolioID,
+				})
+			}
+
+			// Create snapshot
+			snapshotCol, err := app.FindCollectionByNameOrId("investment_snapshots")
+			if err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": "investment_snapshots collection not found"})
+			}
+			snapshotRec := core.NewRecord(snapshotCol)
+			snapshotRec.Set("portfolio", portfolioID)
+			snapshotRec.Set("report_date", snapshot.ReportDate)
+			snapshotRec.Set("period_start", snapshot.PeriodStart)
+			snapshotRec.Set("period_end", snapshot.PeriodEnd)
+			snapshotRec.Set("start_value", snapshot.StartValue)
+			snapshotRec.Set("end_value", snapshot.EndValue)
+			snapshotRec.Set("invested", snapshot.Invested)
+			snapshotRec.Set("gain_loss", snapshot.GainLoss)
+			snapshotRec.Set("fees", snapshot.Fees)
+			snapshotRec.Set("workspace", workspaceID)
+
+			if err := app.Save(snapshotRec); err != nil {
+				return e.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create snapshot: " + err.Error()})
+			}
+
+			// Create holdings (Amundi has individual fund holdings)
+			if len(snapshot.Holdings) > 0 {
+				holdingCol, err := app.FindCollectionByNameOrId("investment_holdings")
+				if err != nil {
+					return e.JSON(http.StatusInternalServerError, map[string]string{"error": "investment_holdings collection not found"})
+				}
+				for _, h := range snapshot.Holdings {
+					holdingRec := core.NewRecord(holdingCol)
+					holdingRec.Set("snapshot", snapshotRec.Id)
+					holdingRec.Set("name", h.Name)
+					holdingRec.Set("isin", h.ISIN)
+					holdingRec.Set("category", h.Category)
+					holdingRec.Set("units", h.Units)
+					holdingRec.Set("price_per_unit", h.PricePerUnit)
+					holdingRec.Set("price_currency", h.PriceCurrency)
+					holdingRec.Set("total_value", h.TotalValue)
+					holdingRec.Set("value_currency", h.ValueCurrency)
+					holdingRec.Set("workspace", workspaceID)
+					if err := app.Save(holdingRec); err != nil {
+						log.Printf("Failed to save holding %s: %v", h.Name, err)
+					}
+				}
+			}
+
+			return e.JSON(http.StatusOK, map[string]any{
+				"status":       "ok",
+				"portfolio_id": portfolioID,
+				"snapshot_id":  snapshotRec.Id,
+				"snapshot":     snapshot,
+			})
+		})
+
+		// ============================================
+		// Investments: List Portfolios
+		// ============================================
+		e.Router.GET("/api/investments/portfolios", func(e *core.RequestEvent) error {
+			workspaceID := e.Request.URL.Query().Get("workspace")
+			if workspaceID == "" {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "workspace required"})
+			}
+
+			filter := "workspace = '" + workspaceID + "'"
+			records, err := app.FindRecordsByFilter("investment_portfolios", filter, "name", 100, 0)
+			if err != nil {
+				return e.JSON(http.StatusOK, []map[string]any{})
+			}
+
+			result := []map[string]any{}
+			for _, r := range records {
+				portfolio := map[string]any{
+					"id":          r.Id,
+					"provider":    r.GetString("provider"),
+					"name":        r.GetString("name"),
+					"contract_id": r.GetString("contract_id"),
+					"currency":    r.GetString("currency"),
+				}
+
+				// Get latest snapshot
+				snapshotFilter := "portfolio = '" + r.Id + "'"
+				snapshots, err := app.FindRecordsByFilter("investment_snapshots", snapshotFilter, "-report_date", 1, 0)
+				if err == nil && len(snapshots) > 0 {
+					s := snapshots[0]
+					portfolio["latest_snapshot"] = map[string]any{
+						"id":           s.Id,
+						"report_date":  s.GetDateTime("report_date").Time(),
+						"period_start": s.GetDateTime("period_start").Time(),
+						"period_end":   s.GetDateTime("period_end").Time(),
+						"start_value":  s.GetFloat("start_value"),
+						"end_value":    s.GetFloat("end_value"),
+						"invested":     s.GetFloat("invested"),
+						"gain_loss":    s.GetFloat("gain_loss"),
+						"fees":         s.GetFloat("fees"),
+					}
+				}
+
+				result = append(result, portfolio)
+			}
+
+			return e.JSON(http.StatusOK, result)
+		})
+
+		// ============================================
+		// Investments: Snapshot History
+		// ============================================
+		e.Router.GET("/api/investments/snapshots", func(e *core.RequestEvent) error {
+			portfolioID := e.Request.URL.Query().Get("portfolio")
+			if portfolioID == "" {
+				return e.JSON(http.StatusBadRequest, map[string]string{"error": "portfolio required"})
+			}
+
+			filter := "portfolio = '" + portfolioID + "'"
+			records, err := app.FindRecordsByFilter("investment_snapshots", filter, "-report_date", 100, 0)
+			if err != nil {
+				return e.JSON(http.StatusOK, []map[string]any{})
+			}
+
+			result := []map[string]any{}
+			for _, r := range records {
+				snap := map[string]any{
+					"id":           r.Id,
+					"report_date":  r.GetDateTime("report_date").Time(),
+					"period_start": r.GetDateTime("period_start").Time(),
+					"period_end":   r.GetDateTime("period_end").Time(),
+					"start_value":  r.GetFloat("start_value"),
+					"end_value":    r.GetFloat("end_value"),
+					"invested":     r.GetFloat("invested"),
+					"gain_loss":    r.GetFloat("gain_loss"),
+					"fees":         r.GetFloat("fees"),
+				}
+
+				// Include holdings
+				holdingsFilter := "snapshot = '" + r.Id + "'"
+				holdingRecords, err := app.FindRecordsByFilter("investment_holdings", holdingsFilter, "name", 100, 0)
+				if err == nil && len(holdingRecords) > 0 {
+					holdings := []map[string]any{}
+					for _, h := range holdingRecords {
+						holdings = append(holdings, map[string]any{
+							"id":             h.Id,
+							"name":           h.GetString("name"),
+							"isin":           h.GetString("isin"),
+							"category":       h.GetString("category"),
+							"units":          h.GetFloat("units"),
+							"price_per_unit": h.GetFloat("price_per_unit"),
+							"price_currency": h.GetString("price_currency"),
+							"total_value":    h.GetFloat("total_value"),
+							"value_currency": h.GetString("value_currency"),
+						})
+					}
+					snap["holdings"] = holdings
+				}
+
+				result = append(result, snap)
+			}
+
+			return e.JSON(http.StatusOK, result)
 		})
 
 		// ============================================

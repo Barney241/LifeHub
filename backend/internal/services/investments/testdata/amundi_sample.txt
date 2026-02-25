@@ -1,0 +1,59 @@
+
+                                      Amundi Czech Republic, investiční společnost, a.s.
+
+                                         VÝPIS Z ÚČTU
+
+  Klient: Martin Černý
+  Číslo smlouvy: 1234567890
+
+  Období výpisu: 01.10.2025 – 31.12.2025
+  Výpis k datu 31.12.2025
+
+
+  CELKOVÁ HODNOTA MAJETKU                                                    120 500,00 Kč
+
+  Celková investovaná částka                                                 105 000,00 Kč
+
+  Zisk / ztráta                                                               15 500,00 Kč
+
+
+  STAVOVÝ VÝPIS
+
+  Měna     Název fondu                                   Druh fondu     Počet PL     NAV/PL          Datum     Hodnota celkem     Měna
+
+  Atlas Capital Balanced
+  Growth Fund CZK AHK (C)                                Akciový fond   12,5430   3 250,1200   31.12.2025      40 765,25  CZK
+
+  Pinnacle Diversified
+  Multi-Asset Conservative - A CZK Hgd (C)               Smíšený fond   25,3100   1 150,7500   31.12.2025      29 124,48  CZK
+
+  Horizon Innovation - Global
+  Disruptive Opportunities - A CZK Hgd Acc               Akciový fond   8,7200   2 890,3400   31.12.2025      25 200,16  CZK
+
+  CELKEM                                                                                                      120 500,00  CZK
+
+  Podílové listy v cizí měně
+
+  Meridian Sovereign
+  Government Bond - A EUR (C)                             Dluhopisový fond   15,2300   1 125,4500   31.12.2025      17 132,10  EUR
+
+  Zenith Continental
+  UCITS ETF Acc                                           Akciový fond   3,4500   2 456,7800   31.12.2025       8 475,89  EUR
+
+  CELKEM                                                                                                       25 607,99  EUR
+
+  ZMĚNOVÝ VÝPIS
+
+  Datum       Popis operace                                      Počet PL      NAV/PL       Částka
+
+  01.10.2025  Nákup - Atlas Capital Balanced Growth                1,2500    3 100,0000    3 875,00
+  15.11.2025  Nákup - Horizon Innovation Global Disruptive         0,8700    2 800,0000    2 436,00
+
+
+  Seznam ISIN
+
+  LU2233445566  Atlas Capital Balanced Growth Fund CZK AHK (C)
+  LU3344556677  Pinnacle Diversified Multi-Asset Conservative - A CZK Hgd (C)
+  LU4455667788  Horizon Innovation - Global Disruptive Opportunities - A CZK Hgd Acc
+  LU5566778899  Meridian Sovereign Government Bond - A EUR (C)
+  LU7788990011  Zenith Continental UCITS ETF Acc

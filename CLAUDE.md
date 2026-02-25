@@ -9,12 +9,14 @@ LifeHub is a centralized "Command Center" that aggregates data from multiple sou
 ## Commands
 
 ### Backend (Go + PocketBase)
-```bash
-cd backend
-go mod tidy        # Install dependencies
-go run main.go serve  # Start server at http://127.0.0.1:8090
-```
+> **The backend API is assumed to already be running at `http://127.0.0.1:8090`.** Do not attempt to start it unless explicitly asked.
+
 Admin UI: http://127.0.0.1:8090/_/
+
+If you do need to restart:
+```bash
+cd backend && go run main.go serve
+```
 
 ### Frontend (Next.js)
 ```bash
@@ -27,6 +29,37 @@ npm run lint       # Run ESLint
 
 ### E-Ink Client (MicroPython)
 Configure `eink_client/main.py` with WiFi credentials, device token, and backend API URL, then flash to Inkplate 6.
+
+## Demo / Test Account
+
+A seed migration (`backend/pb_migrations/4000000000_demo_seed.js`) creates a fully-populated demo environment. It runs automatically on backend start (idempotent — skips if already applied).
+
+**Credentials:**
+```
+Email:    test@test.com
+Password: testtest
+```
+
+**What's pre-seeded:**
+| Data | Details |
+|---|---|
+| Workspace | "Demo Workspace" (CZK display currency) |
+| Accounts | KB Běžný účet (50 000 Kč), Spoření (120 000 Kč) |
+| Income | Zaměstnání 68 000 Kč/mo + Freelance 12 000 Kč/mo |
+| Categories | 10 system categories (Housing, Groceries, Transport…) |
+| Merchants | 10 merchants (Albert, Lidl, Spotify, Netflix, Bolt…) |
+| Import Rules | 10 rules auto-matching merchants → categories |
+| Transactions | ~21 Feb 2026 transactions (income + expenses) |
+| Budget Groups | 5 groups: Bydlení, Jídlo, Doprava, Předplatné, Nakupování |
+| Budget Items | 9 items, each linked to import rules via match patterns |
+
+**To test the Budget tab specifically:**
+1. Log in as `test@test.com` — the Budget tab is pre-populated with real data
+2. Select "This month" (Feb 2026) — all overview totals should be non-zero
+3. Add a new budget item → pick a rule from the dropdown → see matching transactions preview
+4. Verify: amount field shows suggestion but does NOT auto-fill (you must type/click "Use avg")
+
+**To reset demo data:** delete the demo user from PocketBase admin UI at `http://127.0.0.1:8090/_/` — the seed migration will re-run on the next backend restart. Remember: **do not restart the backend unless asked.**
 
 ## Architecture
 

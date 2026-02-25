@@ -128,7 +128,6 @@ export function ImportWizard({
                   {t.name}
                 </option>
               ))}
-              <option value="generic">Generic CSV</option>
             </select>
           </div>
 

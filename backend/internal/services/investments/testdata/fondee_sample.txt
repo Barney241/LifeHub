@@ -1,0 +1,25 @@
+
+
+                                         Výpis z portfolia
+
+  Klient                   Eva Marková
+  Název portfolia          Vyvážený
+  Období                   1. 1. 2026 – 31. 1. 2026
+
+
+  Počáteční hodnota:                                                          150 000 Kč
+  Koncová hodnota:                                                            153 200 Kč
+  Zhodnocení:                                                                   3 200 Kč
+  Poplatek:                                                                        45 Kč
+
+
+  Složení portfolia
+
+  Název ETF                                          ISIN               Podíl      Hodnota
+  Stellar Global Equity UCITS ETF                    IE00X1Y2Z3A4       40,00%     61 280 Kč
+  Nordic Corporate Bond UCITS ETF                    IE00A5B6C7D8       30,00%     45 960 Kč
+  Pacific Rim Markets UCITS ETF                      IE00E9F0G1H2       20,00%     30 640 Kč
+  Alpine High Yield Bond UCITS ETF                   IE00I3J4K5L6       10,00%     15 320 Kč
+
+
+                                         Strana 1 z 1

@@ -45,6 +45,9 @@ type BankTemplate struct {
 	MerchantExtraction MerchantExtraction `json:"merchant_extraction"`
 	AmountNegativeIsExpense bool         `json:"amount_negative_is_expense"`
 	DecimalSeparator   string            `json:"decimal_separator"`
+	// StateColumn and StateRequired filter rows: only rows where StateColumn == StateRequired are imported
+	StateColumn        int               `json:"state_column,omitempty"`
+	StateRequired      string            `json:"state_required,omitempty"`
 }
 
 // MerchantExtraction defines how to extract merchant from transaction
@@ -180,10 +183,45 @@ func GenericTemplate() BankTemplate {
 	}
 }
 
+// RevolutTemplate returns the Revolut bank template
+func RevolutTemplate() BankTemplate {
+	return BankTemplate{
+		Code:      "revolut",
+		Name:      "Revolut",
+		Delimiter: ',',
+		Encoding:  "utf-8",
+		SkipRows:  1,
+		DateFormat: "2006-01-02 15:04:05",
+		FieldMapping: FieldMapping{
+			Date:        3, // Completed Date
+			Description: 4, // Description
+			Amount:      5,
+			Currency:    7,
+			BalanceAfter: 9,
+			OperationType: 0, // Type column (Transfer, Exchange, etc.)
+		},
+		CategoryMapping: map[string]string{
+			"Transfer":     "Transfer",
+			"Card Payment": "Shopping",
+			"Deposit":      "Income",
+			"Exchange":     "Exchange",
+			"Topup":        "Income",
+		},
+		MerchantExtraction: MerchantExtraction{
+			TransferField: 4, // Description field
+		},
+		AmountNegativeIsExpense: true,
+		DecimalSeparator:        ".",
+		StateColumn:             8, // State column
+		StateRequired:           "COMPLETED",
+	}
+}
+
 // GetTemplates returns all available templates
 func GetTemplates() map[string]BankTemplate {
 	return map[string]BankTemplate{
 		"csob":    CSOBTemplate(),
+		"revolut": RevolutTemplate(),
 		"generic": GenericTemplate(),
 	}
 }
@@ -235,8 +273,19 @@ func parseRow(row []string, template BankTemplate, rowNum int) (*ParsedTransacti
 
 	// Check if row has enough columns
 	maxCol := maxColumn(fm)
+	if template.StateColumn > maxCol {
+		maxCol = template.StateColumn
+	}
 	if len(row) <= maxCol {
 		return nil, fmt.Errorf("row has only %d columns, expected at least %d", len(row), maxCol+1)
+	}
+
+	// Filter by state if configured
+	if template.StateRequired != "" && template.StateColumn > 0 {
+		state := strings.TrimSpace(row[template.StateColumn])
+		if state != template.StateRequired {
+			return nil, fmt.Errorf("skipped: state is %q, required %q", state, template.StateRequired)
+		}
 	}
 
 	// Parse date
@@ -573,6 +622,11 @@ func DetectTemplate(data []byte) string {
 	   strings.Contains(content, "číslo účtu;datum zaúčtování") ||
 	   strings.Contains(content, "/0300") {
 		return "csob"
+	}
+
+	// Check for Revolut markers
+	if strings.Contains(content, "Type,Product,Started Date,Completed Date") {
+		return "revolut"
 	}
 
 	// Default to generic

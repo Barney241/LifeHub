@@ -229,7 +229,200 @@ export interface CalendarEvent {
   status?: string;
 }
 
+export interface InvestmentPortfolio {
+  id: string;
+  provider: string;
+  name: string;
+  contract_id?: string;
+  currency: string;
+  latest_snapshot?: {
+    id: string;
+    report_date: string;
+    period_start: string;
+    period_end: string;
+    start_value: number;
+    end_value: number;
+    invested: number;
+    gain_loss: number;
+    fees: number;
+  };
+}
+
+export interface InvestmentHolding {
+  id: string;
+  name: string;
+  isin?: string;
+  category?: string;
+  units: number;
+  price_per_unit: number;
+  price_currency: string;
+  total_value: number;
+  value_currency: string;
+}
+
+export interface InvestmentSnapshot {
+  id: string;
+  report_date: string;
+  period_start: string;
+  period_end: string;
+  start_value: number;
+  end_value: number;
+  invested: number;
+  gain_loss: number;
+  fees: number;
+  holdings?: InvestmentHolding[];
+}
+
+export interface InvestmentImportResult {
+  status: string;
+  portfolio_id: string;
+  snapshot_id: string;
+  snapshot: {
+    provider: string;
+    portfolio_name: string;
+    contract_id?: string;
+    end_value: number;
+    invested: number;
+    gain_loss: number;
+    fees: number;
+    holdings?: InvestmentHolding[];
+  };
+  // Validation error fields (when status is error)
+  error?: string;
+  validation_errors?: string[];
+}
+
+export interface IncomeSource {
+  id: string;
+  name: string;
+  income_type: 'fixed' | 'hourly';
+  amount: number;
+  currency: string;
+  default_hours?: number;
+  is_active: boolean;
+  notes?: string;
+}
+
+export interface IncomeHours {
+  id: string;
+  income_source: string;
+  year: number;
+  month: number;
+  hours: number;
+}
+
+export interface BudgetGroup {
+  id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  sort_order: number;
+  is_active: boolean;
+  items?: BudgetItem[];
+}
+
+export interface BudgetItem {
+  id: string;
+  budget_id: string;
+  name: string;
+  budgeted_amount: number;
+  currency: string;
+  frequency: 'monthly' | 'yearly';
+  match_pattern?: string;
+  match_pattern_type?: 'contains' | 'regex' | 'exact';
+  match_field?: 'description' | 'raw_description' | 'counterparty_account';
+  match_category_id?: string;
+  match_merchant_id?: string;
+  match_account_id?: string;
+  is_expense: boolean;
+  sort_order: number;
+  is_active: boolean;
+  notes?: string;
+}
+
+export interface BudgetItemStatus {
+  budget_item: BudgetItem;
+  normalized_amount: number;
+  actual_amount: number;
+  difference: number;
+  matched_transactions: FinancialRecord[];
+  status: 'pending' | 'paid' | 'over_budget' | 'under_budget';
+}
+
+export interface BudgetGroupStatus {
+  budget: BudgetGroup;
+  items: BudgetItemStatus[];
+  total_budgeted: number;
+  total_actual: number;
+}
+
+export interface IncomeSourceStatus {
+  income_source: IncomeSource;
+  calculated_amount: number;
+  hours_this_month?: number;
+}
+
+export interface BudgetSummary {
+  total_income: number;
+  income_sources: IncomeSourceStatus[];
+  budgets: BudgetGroupStatus[];
+  total_budgeted: number;
+  total_actual: number;
+  remaining: number;
+  unmatched_expenses: FinancialRecord[];
+}
+
+
+export interface Loan {
+  id: string;
+  name: string;
+  loan_type: 'mortgage' | 'personal' | 'car' | 'student' | 'borrowed_from' | 'lent_to';
+  counterparty?: string;
+  principal: number;
+  current_balance: number;
+  interest_rate: number;
+  monthly_payment: number;
+  currency: string;
+  start_date?: string;
+  end_date?: string;
+  match_pattern?: string;
+  match_pattern_type?: 'contains' | 'exact' | 'starts_with' | 'regex';
+  match_field?: 'description' | 'merchant';
+  notes?: string;
+  is_active: boolean;
+}
+
+export interface Goal {
+  id: string;
+  name: string;
+  target_amount: number;
+  current_amount: number;
+  currency: string;
+  target_date?: string;
+  color: string;
+  icon?: string;
+  linked_account?: string;
+  is_active: boolean;
+}
+
+export interface NetWorthSnapshot {
+  id: string;
+  date: string;
+  total_assets: number;
+  total_liabilities: number;
+  net_worth: number;
+  currency: string;
+}
+
+export interface ExchangeRate {
+  base_currency: string;
+  target_currency: string;
+  rate: number;
+  date: string;
+}
+
 export type DomainType = 'task' | 'finance' | 'communication' | 'calendar';
+
 
 export interface Result {
   type: DomainType;
@@ -238,11 +431,16 @@ export interface Result {
   items: (Task | FinancialRecord | Message | CalendarEvent)[];
 }
 
+export interface WorkspaceSettings {
+  display_currency?: string;
+}
+
 export interface Workspace {
   id: string;
   name: string;
   slug: string;
   icon?: string;
+  settings?: WorkspaceSettings;
 }
 
 export interface User {

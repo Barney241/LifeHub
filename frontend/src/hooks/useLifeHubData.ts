@@ -17,44 +17,44 @@ export function useLifeHubData() {
     }
   }, [router]);
 
-    // Load Workspaces
+  // Load Workspaces
 
-    useEffect(() => {
+  useEffect(() => {
 
-      if (!pb.authStore.isValid) return;
+    if (!pb.authStore.isValid) return;
 
-  
 
-      // Use { requestKey: null } to disable auto-cancellation for this call
 
-      pb.collection('workspaces').getFullList<Workspace>({ requestKey: null })
+    // Use { requestKey: null } to disable auto-cancellation for this call
 
-        .then((list) => {
+    pb.collection('workspaces').getFullList<Workspace>({ requestKey: null })
 
-          setWorkspaces(list);
+      .then((list) => {
 
-          if (list.length > 0 && !activeWorkspace) {
+        setWorkspaces(list);
 
-            setActiveWorkspace(list[0]);
+        if (list.length > 0 && !activeWorkspace) {
 
-          }
+          setActiveWorkspace(list[0]);
 
-        })
+        }
 
-        .catch((err) => {
+      })
 
-          if (!err.isAbort) console.error(err);
+      .catch((err) => {
 
-        });
+        if (!err.isAbort) console.error(err);
 
-    }, []);
+      });
 
-   // Only run on mount
+  }, []);
+
+  // Only run on mount
 
   // Fetch Data Logic (Memoized)
   const fetchData = useCallback(async () => {
     if (!activeWorkspace || !pb.authStore.isValid) return;
-    
+
     // Optimistic UI updates could go here, but for now we rely on strict sync
     setLoading(prev => prev); // keep previous loading state to avoid flicker on refetch
 
@@ -136,966 +136,978 @@ export function useLifeHubData() {
     });
   };
 
-  
 
-      const createWorkspace = async (name: string, slug: string, icon: string = 'layout-dashboard') => {
 
-  
+  const createWorkspace = async (name: string, slug: string, icon: string = 'layout-dashboard') => {
 
-        const record = await pb.collection('workspaces').create({
 
-  
 
-          name,
+    const record = await pb.collection('workspaces').create({
 
-  
 
-          slug,
 
-  
+      name,
 
-          icon,
 
-  
 
-        });
+      slug,
 
-  
 
-        const newWorkspace = record as unknown as Workspace;
 
-  
+      icon,
 
-        setWorkspaces(prev => [...prev, newWorkspace]);
+      owner: pb.authStore.record?.id,
 
-  
 
-        setActiveWorkspace(newWorkspace);
 
-  
+    });
 
-        return newWorkspace;
 
-  
 
-      };
+    const newWorkspace = record as unknown as Workspace;
 
-  
 
-    
 
-  
+    setWorkspaces(prev => [...prev, newWorkspace]);
 
-      const updateWorkspace = async (id: string, name: string, slug: string, icon: string) => {
 
-  
 
-        const record = await pb.collection('workspaces').update(id, {
+    setActiveWorkspace(newWorkspace);
 
-  
 
-          name,
 
-  
+    return newWorkspace;
 
-          slug,
 
-  
 
-          icon,
+  };
 
-  
 
-        });
 
-  
 
-        const updated = record as unknown as Workspace;
 
-  
 
-        setWorkspaces(prev => prev.map(ws => ws.id === id ? updated : ws));
 
-  
+  const updateWorkspace = async (id: string, name: string, slug: string, icon: string) => {
 
-        if (activeWorkspace?.id === id) setActiveWorkspace(updated);
 
-  
 
-        return updated;
+    const record = await pb.collection('workspaces').update(id, {
 
-  
 
-      };
 
-  
+      name,
 
-    
 
-  
 
-        const deleteWorkspace = async (id: string) => {
+      slug,
 
-  
 
-    
 
-  
+      icon,
 
-          await pb.collection('workspaces').delete(id);
 
-  
 
-    
+    });
 
-  
 
-          setWorkspaces(prev => {
 
-  
+    const updated = record as unknown as Workspace;
 
-    
 
-  
 
-            const filtered = prev.filter(ws => ws.id !== id);
+    setWorkspaces(prev => prev.map(ws => ws.id === id ? updated : ws));
 
-  
 
-    
 
-  
+    if (activeWorkspace?.id === id) setActiveWorkspace(updated);
 
-            if (activeWorkspace?.id === id) {
 
-  
 
-    
+    return updated;
 
-  
 
-              setActiveWorkspace(filtered.length > 0 ? filtered[0] : null);
 
-  
+  };
 
-    
+  const updateWorkspaceSettings = async (id: string, settings: Record<string, unknown>) => {
+    const workspace = workspaces.find(ws => ws.id === id);
+    const mergedSettings = { ...(workspace?.settings || {}), ...settings };
+    const record = await pb.collection('workspaces').update(id, { settings: mergedSettings });
+    const updated = record as unknown as Workspace;
+    setWorkspaces(prev => prev.map(ws => ws.id === id ? updated : ws));
+    if (activeWorkspace?.id === id) setActiveWorkspace(updated);
+    return updated;
+  };
 
-  
 
-            }
 
-  
 
-    
 
-  
 
-            return filtered;
 
-  
+  const deleteWorkspace = async (id: string) => {
 
-    
 
-  
 
-          });
 
-  
 
-    
 
-  
 
-        };
+    await pb.collection('workspaces').delete(id);
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
+    setWorkspaces(prev => {
 
-        const getAvailableSources = async () => {
 
-  
 
-    
 
-  
 
-          const res = await fetch('http://127.0.0.1:8090/api/sources/available');
 
-  
 
-    
+      const filtered = prev.filter(ws => ws.id !== id);
 
-  
 
-          return res.json();
 
-  
 
-    
 
-  
 
-        };
 
-  
+      if (activeWorkspace?.id === id) {
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-          const addSourceToWorkspace = async (sourceType: string, name: string) => {
+        setActiveWorkspace(filtered.length > 0 ? filtered[0] : null);
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
+      }
 
-            if (!activeWorkspace) return;
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
+      return filtered;
 
-  
 
-            await pb.collection('sources').create({
 
-  
 
-    
 
-  
 
-      
 
-  
+    });
 
-    
 
-  
 
-              name,
 
-  
 
-    
 
-  
 
-      
+  };
 
-  
 
-    
 
-  
 
-              type: sourceType,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-              workspace: activeWorkspace.id,
 
-  
 
-    
 
-  
+  const getAvailableSources = async () => {
 
-      
 
-  
 
-    
 
-  
 
-              active: true,
 
-  
 
-    
+    const res = await fetch('http://127.0.0.1:8090/api/sources/available');
 
-  
 
-      
 
-  
 
-    
 
-  
 
-              config: {}
 
-  
+    return res.json();
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            });
+  };
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            fetchData(); // Refresh current view
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
+  const addSourceToWorkspace = async (sourceType: string, name: string) => {
 
-          };
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-        
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
+    if (!activeWorkspace) return;
 
-  
 
-          const updateSource = async (id: string, name: string) => {
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            await pb.collection('sources').update(id, { name });
 
-  
 
-    
 
-  
 
-      
 
-  
+    await pb.collection('sources').create({
 
-    
 
-  
 
-            fetchData();
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-          };
 
-  
 
-    
 
-  
 
-      
+      name,
 
-  
 
-    
 
-  
 
-        
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-          const removeSource = async (id: string) => {
 
-  
 
-    
 
-  
+      type: sourceType,
 
-      
 
-  
 
-    
 
-  
 
-            await pb.collection('sources').delete(id);
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            fetchData();
 
-  
 
-    
+      workspace: activeWorkspace.id,
 
-  
 
-      
 
-  
 
-    
 
-  
 
-          };
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-        
 
-  
+      active: true,
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-          return {
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            workspaces,
+      config: {}
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            activeWorkspace,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
+    });
 
-            setActiveWorkspace,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            data,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
+    fetchData(); // Refresh current view
 
-  
 
-            loading,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            stats,
 
-  
 
-    
 
-  
 
-      
 
-  
+  };
 
-    
 
-  
 
-            authToken: pb.authStore.token,
 
-            user: pb.authStore.model as User | null,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            logout: () => {
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-              pb.authStore.clear();
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-              router.push('/login');
 
-  
 
-    
 
-  
+  const updateSource = async (id: string, name: string) => {
 
-      
 
-  
 
-    
 
-  
 
-            },
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            createTask,
 
-  
 
-    
+    await pb.collection('sources').update(id, { name });
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            createTransaction,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            createWorkspace,
 
-  
+    fetchData();
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            updateWorkspace,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            deleteWorkspace,
+  };
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            getAvailableSources,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            addSourceToWorkspace,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-            updateSource,
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
+  const removeSource = async (id: string) => {
 
-            removeSource
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-          };
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
+    await pb.collection('sources').delete(id);
 
-  
 
-        }
 
-  
 
-    
 
-  
 
-      
 
-  
 
-    
 
-  
 
-        
 
-  
 
-    
 
-  
 
-      
 
-  
+    fetchData();
 
-    
 
-  
+
+
+
+
+
+
+
+
+
+
+
+
+
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  return {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    workspaces,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    activeWorkspace,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    setActiveWorkspace,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    data,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    loading,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    stats,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    authToken: pb.authStore.token,
+
+    user: pb.authStore.model as User | null,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    logout: () => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      pb.authStore.clear();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      router.push('/login');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    createTask,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    createTransaction,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    createWorkspace,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    updateWorkspace,
+    updateWorkspaceSettings,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    deleteWorkspace,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    getAvailableSources,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    addSourceToWorkspace,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    updateSource,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    removeSource
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

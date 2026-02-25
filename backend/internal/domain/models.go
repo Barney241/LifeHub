@@ -179,6 +179,94 @@ type AccountBalance struct {
 	Currency    string  `json:"currency"`
 }
 
+// IncomeSource represents a source of income (salary, freelance, etc.)
+type IncomeSource struct {
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	IncomeType   string  `json:"income_type"` // "fixed" or "hourly"
+	Amount       float64 `json:"amount"`
+	Currency     string  `json:"currency"`
+	DefaultHours float64 `json:"default_hours,omitempty"`
+	IsActive     bool    `json:"is_active"`
+	Notes        string  `json:"notes,omitempty"`
+}
+
+// IncomeHours represents monthly hour overrides for hourly income sources
+type IncomeHours struct {
+	ID             string  `json:"id"`
+	IncomeSourceID string  `json:"income_source_id"`
+	Year           int     `json:"year"`
+	Month          int     `json:"month"`
+	Hours          float64 `json:"hours"`
+}
+
+// Budget represents a budget group (e.g., "Flat", "Investing")
+type Budget struct {
+	ID        string       `json:"id"`
+	Name      string       `json:"name"`
+	Icon      string       `json:"icon,omitempty"`
+	Color     string       `json:"color,omitempty"`
+	SortOrder int          `json:"sort_order"`
+	IsActive  bool         `json:"is_active"`
+	Items     []BudgetItem `json:"items,omitempty"`
+}
+
+// BudgetItem represents a line item within a budget
+type BudgetItem struct {
+	ID               string  `json:"id"`
+	BudgetID         string  `json:"budget_id"`
+	Name             string  `json:"name"`
+	BudgetedAmount   float64 `json:"budgeted_amount"`
+	Currency         string  `json:"currency"`
+	Frequency        string  `json:"frequency"` // "monthly" or "yearly"
+	MatchPattern     string  `json:"match_pattern,omitempty"`
+	MatchPatternType string  `json:"match_pattern_type,omitempty"` // contains, regex, exact
+	MatchField       string  `json:"match_field,omitempty"`        // description, raw_description, counterparty_account
+	MatchCategoryID  string  `json:"match_category_id,omitempty"`
+	MatchMerchantID  string  `json:"match_merchant_id,omitempty"`
+	MatchAccountID   string  `json:"match_account_id,omitempty"`
+	IsExpense        bool    `json:"is_expense"`
+	SortOrder        int     `json:"sort_order"`
+	IsActive         bool    `json:"is_active"`
+	Notes            string  `json:"notes,omitempty"`
+}
+
+// BudgetItemStatus represents the computed status of a budget item against actual transactions
+type BudgetItemStatus struct {
+	BudgetItem          BudgetItem        `json:"budget_item"`
+	NormalizedAmount    float64           `json:"normalized_amount"`
+	ActualAmount        float64           `json:"actual_amount"`
+	Difference          float64           `json:"difference"`
+	MatchedTransactions []FinancialRecord `json:"matched_transactions"`
+	Status              string            `json:"status"` // on_track, over_budget, under_budget, paid
+}
+
+// BudgetGroupStatus represents the computed status of an entire budget group
+type BudgetGroupStatus struct {
+	Budget        Budget             `json:"budget"`
+	Items         []BudgetItemStatus `json:"items"`
+	TotalBudgeted float64            `json:"total_budgeted"`
+	TotalActual   float64            `json:"total_actual"`
+}
+
+// IncomeSourceStatus represents computed income for a period
+type IncomeSourceStatus struct {
+	IncomeSource     IncomeSource `json:"income_source"`
+	CalculatedAmount float64      `json:"calculated_amount"`
+	HoursThisMonth   float64      `json:"hours_this_month,omitempty"`
+}
+
+// BudgetSummary is the top-level budget status response
+type BudgetSummary struct {
+	TotalIncome       float64              `json:"total_income"`
+	IncomeSources     []IncomeSourceStatus `json:"income_sources"`
+	Budgets           []BudgetGroupStatus  `json:"budgets"`
+	TotalBudgeted     float64              `json:"total_budgeted"`
+	TotalActual       float64              `json:"total_actual"`
+	Remaining         float64              `json:"remaining"`
+	UnmatchedExpenses []FinancialRecord    `json:"unmatched_expenses"`
+}
+
 // CalendarEvent represents a calendar event (Google Calendar, Outlook, etc.)
 type CalendarEvent struct {
 	ID           string    `json:"id"`
